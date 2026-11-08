@@ -377,11 +377,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </div>
                             </div>
 
-                            {item.badge && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-                                {item.badge}
-                              </span>
-                            )}
                           </button>
                         );
                       })}
