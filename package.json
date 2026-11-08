@@ -2,7 +2,8 @@
   "name": "forgelab-studio",
   "version": "1.0.0",
   "private": true,
-  "description": "Plataforma modular ForgeLab Studio com os três projetos-fonte preservados e portal web separado.",
-  "scripts": {"start":"node server.js", "dev":"node --watch server.js"},
-  "engines": {"node": ">=20"}
+  "description": "ForgeLab Studio — versão Railway sem dependência do Supabase",
+  "scripts": {"start": "node server.js", "dev": "node --watch server.js"},
+  "engines": {"node": ">=20"},
+  "dependencies": {"pg": "^8.16.3"}
 }

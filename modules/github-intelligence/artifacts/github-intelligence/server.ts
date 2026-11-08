@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { globalProviderRegistry } from './hackmind-engine/server/providers/ProviderRegistry';
@@ -68,6 +69,35 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   next();
 });
+
+function requireForgePremium(req: any, res: any, next: any) {
+  if (req.path === '/api/health') return next();
+  const cookies = Object.fromEntries(String(req.headers.cookie || '').split(';').map((v: string) => v.trim()).filter(Boolean).map((v: string) => { const i = v.indexOf('='); return (i < 0 ? [v, ''] : [v.slice(0, i), decodeURIComponent(v.slice(i + 1))]) as [string, string]; }));
+  const token = cookies.forgelab_user;
+  const key = process.env.JWT_SECRET || process.env.ADMIN_SESSION_SECRET || '';
+  let payload: any = null;
+  try {
+    if (token && key.length >= 32) {
+      const [data, signature] = token.split('.');
+      if (data && signature) {
+        const expected = createHmac('sha256', key).update(data).digest('base64url');
+        const a = Buffer.from(signature); const b = Buffer.from(expected);
+        if (a.length === b.length && timingSafeEqual(a, b)) payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));
+      }
+    }
+  } catch { payload = null; }
+  if (!payload || payload.role !== 'user' || Number(payload.exp) <= Math.floor(Date.now() / 1000)) {
+    if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Faça login no ForgeLab Studio para acessar este módulo.' });
+    return res.redirect(302, '/login');
+  }
+  if (!['monthly', 'lifetime'].includes(payload.plan_type)) {
+    if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Este módulo exige uma licença Premium ativa.' });
+    return res.redirect(302, '/venda');
+  }
+  return next();
+}
+
+app.use(requireForgePremium);
 
 const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 

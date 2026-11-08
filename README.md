@@ -31,28 +31,20 @@ Abra `http://localhost:4173`.
 
 O portal local serve a apresentação e as telas de acesso. Para executar os módulos técnicos localmente, consulte o README e o `.env.example` de cada pasta.
 
-## Deploy multi-service no Vercel
+## Deploy no Railway
 
-O `vercel.json` define quatro serviços no mesmo projeto/domínio:
+1. Crie um projeto no Railway e faça deploy deste repositório/ZIP.
+2. Adicione um serviço **PostgreSQL** ao mesmo projeto.
+3. No serviço ForgeLab Studio, crie `DATABASE_URL` apontando para a variável de conexão do PostgreSQL (por exemplo, `${{Postgres.DATABASE_URL}}`; ajuste `Postgres` para o nome real do serviço).
+4. Configure `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `JWT_SECRET` e `APP_ENCRYPTION_KEY`. Use segredos aleatórios fortes (por exemplo, `openssl rand -hex 32`).
+5. Configure `GROQ_API_KEY` e `GITHUB_TOKEN` se for utilizar esses recursos.
+6. O comando de inicialização é `npm start`; o Railway fornece `PORT` automaticamente.
 
-| Serviço | Caminho público |
-|---|---|
-| `portal` | `/`, `/apresentacao`, `/venda`, `/login`, `/admin/*` |
-| `github-app` | `/github/*` e `/api/*` |
-| `ziptogit` | `/ziptogit/*` |
-| `hackmind` | `/hackmind/*` |
+O servidor cria automaticamente as tabelas `app_users` e `app_settings` na primeira inicialização. Não é necessário executar SQL no Supabase nem cadastrar chaves Supabase. O banco é PostgreSQL nativo do Railway.
 
-Os serviços não têm bindings entre si porque os módulos não fazem chamadas servidor-a-servidor uns aos outros. As chamadas dos navegadores são roteadas pelos caminhos públicos de cada serviço. O `api-server` original do workspace GitHub Intelligence permanece preservado no código-fonte; a aplicação `github-app` mantém seu servidor Express próprio e suas rotas `/api`.
+### Persistência PostgreSQL sem Supabase
 
-Configure no Vercel, em **Settings → Environment Variables**:
-
-```text
-ADMIN_EMAIL=seu-email-administrativo
-ADMIN_PASSWORD=uma-senha-forte-e-unica
-ADMIN_SESSION_SECRET=segredo-aleatorio-com-pelo-menos-32-caracteres
-```
-
-Use valores próprios. Não publique credenciais no GitHub. Depois de alterar variáveis, faça novo deploy. O login administrativo usa cookie `HttpOnly`, `SameSite=Strict` e assinatura HMAC. A autenticação de usuários comuns, banco de dados, licenças, clientes, checkout e pagamentos ainda precisam de integração. Até essa autenticação ser conectada, os caminhos técnicos `/github/`, `/ziptogit/` e `/hackmind/` não devem ser considerados áreas privadas; restrinja-os no Vercel se o acesso precisar ser exclusivo.
+A variável obrigatória é `DATABASE_URL`. O servidor utiliza o driver oficial `pg`, inicializa o esquema automaticamente e mantém usuários, senhas com hash, planos, vencimentos e configurações administrativas no PostgreSQL. O banco não depende do disco efêmero do container.
 
 ### Variáveis dos módulos
 
@@ -81,4 +73,30 @@ A apresentação informa a garantia de 7 dias solicitada pelo responsável. Ante
 
 ## Estado de validação
 
-Foram realizadas verificações estáticas de arquivos, rotas do portal, sintaxe JSON, estrutura dos módulos e integridade do ZIP. O deploy multi-service deve ser validado no ambiente Vercel com suas dependências, variáveis e limites reais. Não se declara autenticação de usuários, cobrança ou integração comercial concluída.
+A versão Railway usa PostgreSQL nativo via `DATABASE_URL`; o esquema é inicializado pelo servidor. Valide autenticação, webhook e integrações no ambiente de produção antes de liberar vendas.
+
+## Administração, usuários, preço e integrações (portal Railway)
+
+O portal inclui painel administrativo em `/admin`, login administrativo em `/admin/login`, login de usuários em `/login` e área do usuário em `/painel`.
+
+### Persistência obrigatória (Railway PostgreSQL)
+
+Adicione um PostgreSQL ao projeto Railway e configure `DATABASE_URL` no serviço ForgeLab Studio. As tabelas são criadas automaticamente. Não configure `SUPABASE_URL` nem `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Recursos administrativos
+
+- `/admin`: visão geral, gestão de usuários, plano e licença, preço único ativo, pagamento/webhook, JWT, Google e SEO.
+- Usuários podem ser criados manualmente pelo administrador. Plano: gratuito, Premium mensal ou Premium vitalício; status: ativo ou suspenso.
+- O preço público tem uma única oferta ativa: mensal recorrente **ou** pagamento único vitalício. A página `/apresentacao` e `/venda` carrega a configuração publicada pelo painel.
+- Webhook genérico: `POST /api/webhooks/payment`, assinatura no cabeçalho `X-ForgeLab-Signature: sha256=<HMAC_SHA256_do_corpo>`. O corpo deve conter `type` e `data.email`. Eventos de pagamento aprovado suportados: `payment.paid`, `subscription.activated`, `checkout.session.completed`. Cancelamento/reembolso: `payment.refunded`, `subscription.cancelled`, `subscription.expired`.
+- O endpoint não substitui a configuração do gateway. Cadastre a URL no provedor e adapte o payload do provedor para o formato documentado. O checkout externo só é aberto se uma URL for configurada no preço.
+- Parâmetros `iss`, `aud`, validade e renovação JWT são configuráveis no painel. Os segredos de assinatura permanecem em variáveis de ambiente.
+- Google Analytics 4, Tag Manager, Search Console e metadados SEO são publicados nas páginas públicas após salvar as configurações.
+
+### Observações de segurança
+
+- Não exponha `DATABASE_URL`, `JWT_SECRET`, `ADMIN_SESSION_SECRET`, `APP_ENCRYPTION_KEY`, tokens do GitHub ou chaves de IA no navegador.
+- O webhook genérico requer assinatura HMAC válida e usuário previamente cadastrado.
+- A ativação mensal inicial utiliza um período aproximado de 31 dias; ajuste a lógica do webhook ao ciclo de cobrança e aos eventos reais do gateway antes de produção comercial.
+- Configure termos, cancelamento, reembolso, política de privacidade e consentimento de Analytics antes de abrir vendas.
+- As rotas dos três módulos agora verificam o cookie JWT do ForgeLab e exigem plano `monthly` ou `lifetime`. Contas gratuitas podem entrar no painel, mas são encaminhadas à página de planos ao tentar abrir os módulos Premium. O middleware valida assinatura e expiração do token; suspensão administrativa passa a valer assim que o token atual expirar (ou no próximo refresh/login).

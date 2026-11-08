@@ -60,6 +60,24 @@
       }
     },
     {
+      "source": "/api/public/(.*)",
+      "destination": {
+        "service": "portal"
+      }
+    },
+    {
+      "source": "/api/auth/(.*)",
+      "destination": {
+        "service": "portal"
+      }
+    },
+    {
+      "source": "/api/webhooks/(.*)",
+      "destination": {
+        "service": "portal"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "github-app"
