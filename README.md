@@ -1,102 +1,74 @@
-# ForgeLab Studio
+<p align="center"><img src="assets/banner.svg" alt="ForgeLab Studio — portal com GitHub Intelligence, ZipToGit e HACKMIND" width="100%"></p>
 
-ForgeLab Studio reúne três projetos-fonte em um único repositório, com identidade e portal público próprios:
+# ForgeLab Studio — portal SaaS com GitHub Intelligence, ZipToGit e HACKMIND
 
-- `modules/github-intelligence/` — inteligência de GitHub, análise de repositórios, perfil profissional e segurança.
-- `modules/ziptogit/` — inspeção de ZIPs, estrutura de arquivos, análise de arquitetura e operações com GitHub.
-- `modules/hackmind/` — geração e avaliação de ideias, hipóteses e planos para hackathons.
+Portal em **Node.js** com **PostgreSQL** que reúne três ferramentas num único produto, com autenticação, planos e painel administrativo. Ele foi preparado para deploy no **Railway**.
 
-O código dos três módulos foi mantido dentro de suas pastas originais. Como usam dependências, APIs e servidores próprios, cada módulo é compilado como serviço separado e publicado sob um caminho do mesmo domínio.
+| Módulo | Pasta | Função |
+|---|---|---|
+| **GitHub Intelligence** | `modules/github-intelligence/` | Análise de repositórios e de perfil profissional no GitHub, com verificação de segurança (React/Vite + Express, monorepo pnpm) |
+| **ZipToGit** | `modules/ziptogit/` | Inspeção de ZIP/APK com defesas contra Zip Slip e zip bomb, análise de arquitetura clean-room e publicação no GitHub |
+| **HACKMIND** | `modules/hackmind/` | Pesquisa de editais, análise de projetos vencedores e geração de ideias e planos para hackathons |
 
-## Portal público
+## Recursos do portal
 
-- `/` — apresentação completa do ForgeLab Studio.
-- `/apresentacao` — apresentação institucional.
-- `/venda` — informações comerciais (preços e checkout dependem de configuração real).
-- `/login` — entrada de usuários (a autenticação de usuários/licenças ainda precisa ser conectada).
-- `/admin/login` — login administrativo, acessível diretamente.
-- `/admin` — rota administrativa protegida por sessão assinada.
+- **Páginas públicas**: `/` e `/apresentacao` (apresentação), `/venda` (oferta), `/login` (usuários) e `/painel` (área do usuário).
+- **Administração** em `/admin`, protegida por sessão assinada e sem link no menu público:
+  - gestão de usuários (plano gratuito, Premium mensal ou vitalício; ativo ou suspenso);
+  - preço único ativo e URL de checkout externo;
+  - parâmetros JWT (`iss`, `aud`, validade);
+  - Google Analytics 4, Tag Manager, Search Console e SEO.
+- **Autenticação JWT** em cookie, com renovação (`/api/auth/*`). Os módulos exigem plano `monthly` ou `lifetime`.
+- **Webhook de pagamento** (`POST /api/webhooks/payment`) com assinatura HMAC-SHA256 no cabeçalho `X-ForgeLab-Signature`; ativa e cancela planos conforme o evento.
+- **Persistência em PostgreSQL** (driver `pg`): as tabelas `app_users` e `app_settings` são criadas na primeira inicialização, com senhas em hash.
+- **Diagnóstico** em `/api/health`.
 
-A apresentação pública contém somente a marca e o acesso de usuário. Não há link administrativo no menu público.
+## Instalação
 
-## Executar localmente
-
-Requisitos: Node.js 20 ou superior.
+Requisitos: **Node.js 20+** e um **PostgreSQL**.
 
 ```bash
-npm start
+git clone https://github.com/ticarollamas-arch/Cyberhuntlab-Dev.git
+cd Cyberhuntlab-Dev
+npm install
+cp .env.example .env
 ```
 
-Abra `http://localhost:4173`.
+| Variável | Uso |
+|---|---|
+| `DATABASE_URL` / `DATABASE_SSL` | Conexão PostgreSQL (obrigatória) |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` | Acesso administrativo |
+| `JWT_SECRET`, `APP_ENCRYPTION_KEY` | Assinatura de tokens e cifra de dados (use `openssl rand -hex 32`) |
+| `GITHUB_TOKEN` | Integrações com o GitHub |
+| `GROQ_API_KEY`, `NVIDIA_NIM_API_KEY`, `OLLAMA_*`, `CUSTOM_AI_*`, `AI_DEFAULT_PROVIDER`, `AI_DEFAULT_MODEL` | Provedores de IA dos módulos |
 
-O portal local serve a apresentação e as telas de acesso. Para executar os módulos técnicos localmente, consulte o README e o `.env.example` de cada pasta.
+## Como usar
 
-## Deploy no Railway
+```bash
+npm start        # http://localhost:4173
+npm run dev      # com recarregamento automático
+```
 
-1. Crie um projeto no Railway e faça deploy deste repositório/ZIP.
-2. Adicione um serviço **PostgreSQL** ao mesmo projeto.
-3. No serviço ForgeLab Studio, crie `DATABASE_URL` apontando para a variável de conexão do PostgreSQL (por exemplo, `${{Postgres.DATABASE_URL}}`; ajuste `Postgres` para o nome real do serviço).
-4. Configure `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `JWT_SECRET` e `APP_ENCRYPTION_KEY`. Use segredos aleatórios fortes (por exemplo, `openssl rand -hex 32`).
-5. Configure `GROQ_API_KEY` e `GITHUB_TOKEN` se for utilizar esses recursos.
-6. O comando de inicialização é `npm start`; o Railway fornece `PORT` automaticamente.
+O portal local serve a apresentação, o login e o painel. Cada módulo tem README e `.env.example` próprios e é compilado como um serviço separado.
 
-O servidor cria automaticamente as tabelas `app_users` e `app_settings` na primeira inicialização. Não é necessário executar SQL no Supabase nem cadastrar chaves Supabase. O banco é PostgreSQL nativo do Railway.
+### Deploy no Railway
 
-### Persistência PostgreSQL sem Supabase
+1. Crie o projeto a partir deste repositório e adicione um serviço **PostgreSQL**.
+2. Defina `DATABASE_URL` com a referência do banco (ex.: `${{Postgres.DATABASE_URL}}`) e as demais variáveis.
+3. O comando de inicialização é `npm start`; o Railway fornece `PORT`.
 
-A variável obrigatória é `DATABASE_URL`. O servidor utiliza o driver oficial `pg`, inicializa o esquema automaticamente e mantém usuários, senhas com hash, planos, vencimentos e configurações administrativas no PostgreSQL. O banco não depende do disco efêmero do container.
+## Avisos
 
-### Variáveis dos módulos
+- Valide autenticação, webhook e integrações em produção antes de abrir vendas, e publique termos, política de reembolso e consentimento de Analytics.
+- O webhook usa um ciclo mensal aproximado de 31 dias; ajuste-o ao gateway real.
+- Nunca exponha segredos em variáveis `VITE_*` ou no navegador.
+- A análise de ZIP/APK deve ser feita apenas em material próprio ou autorizado.
+- O currículo, quando usado, é só contexto privado para comparar competências com evidências dos repositórios; nada é inventado ou publicado.
 
-Configure somente os provedores que for utilizar. Exemplos:
+## Tecnologias
 
-- `GITHUB_TOKEN` / OAuth GitHub conforme o fluxo escolhido.
-- `GEMINI_API_KEY` para funções que utilizam Gemini.
-- `GROQ_API_KEY`, `NVIDIA_NIM_API_KEY` / `NVIDIA_API_KEY` e `AI_DEFAULT_PROVIDER` / `AI_DEFAULT_MODEL` conforme o módulo que utilizar.
-- Credenciais de banco de dados exigidas pelo workspace GitHub Intelligence.
+Node.js · PostgreSQL (`pg`) · JWT · HMAC-SHA256 · React · Vite · Express · TypeScript · pnpm · Groq · NVIDIA NIM · Ollama · Railway
 
-Não coloque chaves em variáveis `VITE_*` ou no código do navegador.
+## Licença
 
-## Uso do currículo
-
-O currículo é opcional e serve somente como contexto privado para comparar competências declaradas com evidências verificáveis dos repositórios. A interface de criação/otimização de currículo foi retirada do fluxo do usuário. O sistema não deve inventar habilidades, cargos, senioridade, anos de experiência ou métricas, nem publicar o currículo no GitHub.
-
-## Direitos autorais e licenças\n\nNão foi criada uma licença única que substitua os direitos dos projetos originais. Avisos de autoria, copyright e licenças de terceiros são preservados. Consulte `docs/LICENCAS-E-DIREITOS.md`.\n\n## Segurança e engenharia reversa
-
-Os scanners ajudam a encontrar achados dentro da cobertura das regras e ferramentas configuradas; não garantem detectar ou remover todas as vulnerabilidades. Correções devem ser testadas e aprovadas antes da publicação.
-
-A análise de ZIP/APK deve ocorrer somente em materiais próprios ou autorizados. A função de engenharia reversa é orientada a inventário e reconstrução clean-room com implementação original. Avisos de autoria e licenças de terceiros devem ser preservados; não se removem créditos ou direitos autorais de código alheio.
-
-## Garantia e condições comerciais
-
-A apresentação informa a garantia de 7 dias solicitada pelo responsável. Antes de ativar checkout, publique os termos completos de elegibilidade, contagem do prazo, canal de solicitação e reembolso. Preços, planos e meios de pagamento não foram inventados nem ativados.
-
-## Estado de validação
-
-A versão Railway usa PostgreSQL nativo via `DATABASE_URL`; o esquema é inicializado pelo servidor. Valide autenticação, webhook e integrações no ambiente de produção antes de liberar vendas.
-
-## Administração, usuários, preço e integrações (portal Railway)
-
-O portal inclui painel administrativo em `/admin`, login administrativo em `/admin/login`, login de usuários em `/login` e área do usuário em `/painel`.
-
-### Persistência obrigatória (Railway PostgreSQL)
-
-Adicione um PostgreSQL ao projeto Railway e configure `DATABASE_URL` no serviço ForgeLab Studio. As tabelas são criadas automaticamente. Não configure `SUPABASE_URL` nem `SUPABASE_SERVICE_ROLE_KEY`.
-
-### Recursos administrativos
-
-- `/admin`: visão geral, gestão de usuários, plano e licença, preço único ativo, pagamento/webhook, JWT, Google e SEO.
-- Usuários podem ser criados manualmente pelo administrador. Plano: gratuito, Premium mensal ou Premium vitalício; status: ativo ou suspenso.
-- O preço público tem uma única oferta ativa: mensal recorrente **ou** pagamento único vitalício. A página `/apresentacao` e `/venda` carrega a configuração publicada pelo painel.
-- Webhook genérico: `POST /api/webhooks/payment`, assinatura no cabeçalho `X-ForgeLab-Signature: sha256=<HMAC_SHA256_do_corpo>`. O corpo deve conter `type` e `data.email`. Eventos de pagamento aprovado suportados: `payment.paid`, `subscription.activated`, `checkout.session.completed`. Cancelamento/reembolso: `payment.refunded`, `subscription.cancelled`, `subscription.expired`.
-- O endpoint não substitui a configuração do gateway. Cadastre a URL no provedor e adapte o payload do provedor para o formato documentado. O checkout externo só é aberto se uma URL for configurada no preço.
-- Parâmetros `iss`, `aud`, validade e renovação JWT são configuráveis no painel. Os segredos de assinatura permanecem em variáveis de ambiente.
-- Google Analytics 4, Tag Manager, Search Console e metadados SEO são publicados nas páginas públicas após salvar as configurações.
-
-### Observações de segurança
-
-- Não exponha `DATABASE_URL`, `JWT_SECRET`, `ADMIN_SESSION_SECRET`, `APP_ENCRYPTION_KEY`, tokens do GitHub ou chaves de IA no navegador.
-- O webhook genérico requer assinatura HMAC válida e usuário previamente cadastrado.
-- A ativação mensal inicial utiliza um período aproximado de 31 dias; ajuste a lógica do webhook ao ciclo de cobrança e aos eventos reais do gateway antes de produção comercial.
-- Configure termos, cancelamento, reembolso, política de privacidade e consentimento de Analytics antes de abrir vendas.
-- As rotas dos três módulos agora verificam o cookie JWT do ForgeLab e exigem plano `monthly` ou `lifetime`. Contas gratuitas podem entrar no painel, mas são encaminhadas à página de planos ao tentar abrir os módulos Premium. O middleware valida assinatura e expiração do token; suspensão administrativa passa a valer assim que o token atual expirar (ou no próximo refresh/login).
+Este repositório ainda **não tem licença definida**. Os três módulos vêm de bases de código independentes; veja [docs/LICENCAS-E-DIREITOS.md](docs/LICENCAS-E-DIREITOS.md) antes de redistribuir. Dependências de terceiros mantêm suas próprias licenças.
